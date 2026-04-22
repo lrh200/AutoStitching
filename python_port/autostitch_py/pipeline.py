@@ -8,7 +8,12 @@ from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 
-from .io_utils import list_images, load_camera_priors, load_tiepoint_priors, pair_key
+from .io_utils import (
+    build_tp_correspondences,
+    list_images,
+    load_camera_priors_pix4d,
+    load_tiepoint_priors,
+)
 from .matcher import FeatureMatcher
 from .topology import PriorBundle, TopologyEstimator
 
@@ -33,15 +38,20 @@ class MosaicPipeline:
         if len(images) < 2:
             raise ValueError("Need at least two images")
 
-        cam = load_camera_priors(self.cfg.params_f)
+        cam = load_camera_priors_pix4d(self.cfg.params_f)
         tp = load_tiepoint_priors(self.cfg.tp_f)
+        tp_corr_raw = build_tp_correspondences(self.cfg.tp_f)
+        tp_corr = {
+            k: (np.asarray(v[0], dtype=np.float32), np.asarray(v[1], dtype=np.float32))
+            for k, v in tp_corr_raw.items()
+        }
 
         priors = PriorBundle(
             xyz_by_name={k: v.xyz for k, v in cam.items()},
             tp_score_by_pair=tp,
         )
 
-        matcher = FeatureMatcher(images)
+        matcher = FeatureMatcher(images, tp_corr_by_pair=tp_corr)
         estimator = TopologyEstimator([p.name for p in images], matcher, priors)
         topo = estimator.estimate(self.cfg.is_time_consecutive)
 
@@ -67,7 +77,6 @@ class MosaicPipeline:
         root = order[0]
         models[root] = np.eye(3, dtype=np.float64)
 
-        order_index = {node: idx for idx, node in enumerate(order)}
         for idx in range(1, len(order)):
             node = order[idx]
             parent = parents[idx]

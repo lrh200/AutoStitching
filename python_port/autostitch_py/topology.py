@@ -43,10 +43,11 @@ class TopologyEstimator:
         ni, nj = self.names[i], self.names[j]
         key = pair_key(ni, nj)
         tp = self.priors.tp_score_by_pair.get(key, 0.0)
-        sim = self.matcher.quick_similarity(i, j)
+        sim = self.matcher.quick_similarity(i, j) if tp <= 0 else 0.0
 
-        # prior fusion: co-visibility prior + quick feature similarity
-        fused = sim + tp
+        # use tie-point co-visibility as first-class retrieval basis;
+        # ORB quick score is fallback when tp prior is absent.
+        fused = tp if tp > 0 else sim
 
         # optional camera prior penalty
         if ni in self.priors.xyz_by_name and nj in self.priors.xyz_by_name:
