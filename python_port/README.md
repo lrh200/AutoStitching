@@ -37,6 +37,15 @@ python -m autostitch_py.cli \
 
 Add `--is_time_consecutive` to force the time-consecutive topology mode.
 
+You can also run the file directly (fixes `attempted relative import with no known parent package`):
+
+```bash
+python python_port/autostitch_py/cli.py \
+  --params_f "D:\\forest_good3_hejiangdong\\forest_good3_hejiangdong\\1_initial\\params\\forest_good3_hejiangdong_calibrated_external_camera_parameters.txt" \
+  --tp_f "D:\\forest_good3_hejiangdong\\forest_good3_hejiangdong\\1_initial\\params\\forest_good3_hejiangdong_tp_pix4d.txt" \
+  --img_dir "E:/southeastcode/image_mosaic/UAV_dateset_three_image_mosaic/dataset/HeJiaDong"
+```
+
 ## Outputs
 
 Generated in `output_dir` (default `python_port/output`):

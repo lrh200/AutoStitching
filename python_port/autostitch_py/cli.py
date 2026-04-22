@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+import sys
 
-from .pipeline import MosaicPipeline, PipelineConfig
+if __package__ in (None, ""):
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from autostitch_py.pipeline import MosaicPipeline, PipelineConfig
+else:
+    from .pipeline import MosaicPipeline, PipelineConfig
 
 
 def build_parser() -> argparse.ArgumentParser:
