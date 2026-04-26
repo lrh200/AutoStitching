@@ -36,6 +36,7 @@ python -m autostitch_py.cli \
 ```
 
 Add `--is_time_consecutive` to force the time-consecutive topology mode.
+This ablation rewrite removes linear initialization and directly runs global 8DoF optimization.
 
 You can also run the file directly (fixes `attempted relative import with no known parent package`):
 
@@ -60,3 +61,4 @@ Generated in `output_dir` (default `python_port/output`):
 - If Pix4D tie-point correspondences are present, they are used as the primary matching basis.
 - Topology search supports both sequential and unordered modes.
 - Priors from external camera params and Pix4D tiepoint file are fused into guiding costs.
+- Alignment stage is ablation mode: **direct global 8DoF optimization** (`ba_iters`, `ba_sample_step`, `ba_lambda`) without affine linear initialization.

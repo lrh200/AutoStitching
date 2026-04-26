@@ -27,6 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--is_time_consecutive", action="store_true")
     p.add_argument("--output_dir", default="./python_port/output")
+    p.add_argument("--ba_iters", type=int, default=30)
+    p.add_argument("--ba_sample_step", type=int, default=3)
+    p.add_argument("--ba_lambda", type=float, default=1e-3)
     return p
 
 
@@ -38,6 +41,9 @@ def main() -> None:
         img_dir=args.img_dir,
         is_time_consecutive=args.is_time_consecutive,
         output_dir=args.output_dir,
+        ba_iters=args.ba_iters,
+        ba_sample_step=args.ba_sample_step,
+        ba_lambda=args.ba_lambda,
     )
     report = MosaicPipeline(cfg).run()
     print("Done:", report)

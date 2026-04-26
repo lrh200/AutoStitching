@@ -15,6 +15,7 @@ from .io_utils import (
     load_tiepoint_priors,
 )
 from .matcher import FeatureMatcher
+from .optimizer import GlobalHomographyOptimizer, OptimizerConfig
 from .topology import PriorBundle, TopologyEstimator
 
 
@@ -25,6 +26,9 @@ class PipelineConfig:
     img_dir: str
     is_time_consecutive: bool = False
     output_dir: str = "./python_port/output"
+    ba_iters: int = 30
+    ba_sample_step: int = 3
+    ba_lambda: float = 1e-3
 
 
 class MosaicPipeline:
@@ -55,7 +59,15 @@ class MosaicPipeline:
         estimator = TopologyEstimator([p.name for p in images], matcher, priors)
         topo = estimator.estimate(self.cfg.is_time_consecutive)
 
-        models = self._initialize_models(images, topo.visit_order, topo.parents, matcher)
+        pair_matches = self._collect_pair_matches(topo.similarity, matcher)
+        models = self._optimize_models_direct_8dof(
+            topo.visit_order,
+            topo.visit_order[0],
+            pair_matches,
+            iters=self.cfg.ba_iters,
+            sample_step=self.cfg.ba_sample_step,
+            lm_lambda=self.cfg.ba_lambda,
+        )
         pano_path = self._render_mosaic(images, topo.visit_order, models)
 
         report = {
@@ -72,30 +84,37 @@ class MosaicPipeline:
         np.savetxt(self.output_dir / "similarity_mat.txt", topo.similarity, fmt="%d")
         return report
 
-    def _initialize_models(self, images: List[Path], order: List[int], parents: List[int], matcher: FeatureMatcher) -> Dict[int, np.ndarray]:
-        models: Dict[int, np.ndarray] = {}
-        root = order[0]
-        models[root] = np.eye(3, dtype=np.float64)
+    def _collect_pair_matches(
+        self, similarity: np.ndarray, matcher: FeatureMatcher
+    ) -> Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]:
+        n = similarity.shape[0]
+        out: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                if similarity[i, j] <= 0:
+                    continue
+                res = matcher.full_match(i, j)
+                if not res.ok:
+                    continue
+                out[(i, j)] = (res.points_a.astype(np.float64), res.points_b.astype(np.float64))
+        return out
 
-        for idx in range(1, len(order)):
-            node = order[idx]
-            parent = parents[idx]
-            if parent < 0:
-                models[node] = np.eye(3, dtype=np.float64)
-                continue
-
-            # parents store node-id in this implementation
-            p_node = parent
-            result = matcher.full_match(p_node, node)
-            if not result.ok:
-                models[node] = models.get(p_node, np.eye(3, dtype=np.float64)).copy()
-                continue
-
-            H, _ = cv2.findHomography(result.points_b, result.points_a, cv2.RANSAC, 3.0)
-            if H is None:
-                models[node] = models.get(p_node, np.eye(3, dtype=np.float64)).copy()
-                continue
-            models[node] = models[p_node] @ H
+    def _optimize_models_direct_8dof(
+        self,
+        order: List[int],
+        root: int,
+        pair_matches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]],
+        iters: int,
+        sample_step: int,
+        lm_lambda: float,
+    ) -> Dict[int, np.ndarray]:
+        optimizer = GlobalHomographyOptimizer(
+            OptimizerConfig(max_iters=iters, sample_step=sample_step, lm_lambda=lm_lambda)
+        )
+        models = optimizer.optimize(order=order, root_img=root, pair_matches=pair_matches)
+        for img in order:
+            if img not in models:
+                models[img] = np.eye(3, dtype=np.float64)
         return models
 
     def _render_mosaic(self, images: List[Path], order: List[int], models: Dict[int, np.ndarray]) -> Path:
